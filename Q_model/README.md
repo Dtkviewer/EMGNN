@@ -56,7 +56,7 @@ You can fine-tune and predict with our 778 energetic materials directly by runni
 Q_model/script/Q_prediction.ipynb
 ```
 
-##Citation
+## Citation
 
 ```
 @misc{jiao2022energy,
