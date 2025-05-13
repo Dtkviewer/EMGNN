@@ -24,7 +24,7 @@ import torch.nn.functional as F
 all_tasks = ['alpha', 'gap', 'homo', 'lumo', 'mu', 'Cv', 'G', 'H', 'r2', 'U', 'U0', 'zpve']
 
 parser = argparse.ArgumentParser(description='QM9 Example')
-parser.add_argument('--config_path', type=str, default='/home/gql/tmp/EMGP/config/finetune_qm9.yml', metavar='N',
+parser.add_argument('--config_path', type=str, default='Q_model/config/finetune_qm9.yml', metavar='N',
                     help='Path of config yaml.')
 parser.add_argument('--property', type=str, default='', metavar='N',
                     help='Property to predict.')
@@ -60,36 +60,6 @@ torch.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 print('fix seed:', seed)
 
-import torch
-import torch.nn.functional as F
-
-
-def mdn_loss_fn(pi, sigma, mu, y):
-    """
-    Compute the loss and predicted value for a Mixture Density Network.
-
-    Parameters:
-    - pi: Tensor of shape (batch_size, num_components) representing the mixture coefficients.
-    - sigma: Tensor of shape (batch_size, num_components) representing the standard deviations of the Gaussian components.
-    - mu: Tensor of shape (batch_size, num_components) representing the means of the Gaussian components.
-    - y: Tensor of shape (batch_size, 1) representing the target values.
-
-    Returns:
-    - loss: The negative log-likelihood loss for the MDN.
-    - predicted_value: Tensor of shape (batch_size, 1) representing the expected value.
-    """
-    distribution = torch.distributions.normal.Normal(mu, sigma)
-
-    likelihood = distribution.log_prob(y)
-
-    loss = -torch.mean(likelihood)
-
-    # Compute the predicted value (expected value)
-    predicted_value = torch.sum(pi * mu, dim=1, keepdim=True)
-
-    return loss, predicted_value
-
-
 def load_model(model, model_path):
     state = torch.load(model_path, map_location=device)
     new_dict = OrderedDict()
@@ -107,7 +77,6 @@ def load_model(model, model_path):
 dataloaders, charge_scale = load_dataset.retrieve_dataloaders(config.data.base_path, config.train.batch_size, config.train.num_workers)
 # compute mean and mean absolute deviation
 meann, mad = qm9_utils.compute_mean_mad(dataloaders, config.train.property)
-print(f"meann: {meann}\tmad: {mad}")
 
 model = layers.EGNN_finetune_last(in_node_nf=config.model.max_atom_type * (config.model.charge_power + 1),
                                   in_edge_nf=0 if config.model.no_edge_types else 4, hidden_nf=config.model.hidden_dim,
@@ -202,7 +171,7 @@ def gen_fully_connected_with_hop(pos, mask):
     return edge_index, edge_type - 1
 
 
-def train(epoch, loader, config, partition='train', loss_type='mdn'):
+def train(epoch, loader, config, partition='train'):
     res = {'loss': 0, 'counter': 0, 'loss_arr': []}
     train_npred = []
     train_ntrue = []
@@ -237,20 +206,11 @@ def train(epoch, loader, config, partition='train', loss_type='mdn'):
         label = data[config.train.property].to(device, dtype)
         atom_positions = atom_positions.view(batch_size * n_nodes, -1)
         atom_mask = atom_mask.view(batch_size * n_nodes, -1)
-        pi, sigma, mu = model(h=nodes, x=atom_positions, edges=edges, edge_attr=edge_attr, node_mask=atom_mask, n_nodes=n_nodes,
+        pred = model(h=nodes, x=atom_positions, edges=edges, edge_attr=edge_attr, node_mask=atom_mask, n_nodes=n_nodes,
                      adapter=config.train.property)
 
-        if loss_type=='mdn':
-            loss, pred = mdn_loss_fn(pi, sigma, mu, (label.unsqueeze(-1) - meann) / mad)
-            loss = loss.mean()
-        else:
-            loss = loss_l1(mu.squeeze(-1), (label - meann) / mad)
-            pred = mu
-
-
-
         if partition == 'train':
-            # loss = loss_l1(pred, (label - meann) / mad)
+            loss = loss_l1(pred, (label - meann) / mad)
             loss.backward()
             optimizer.step()
             train_npred.append(pred.detach().cpu().numpy())
@@ -258,16 +218,14 @@ def train(epoch, loader, config, partition='train', loss_type='mdn'):
 
 
         elif partition == 'valid':
-            # loss = loss_l1(pred, (label - meann) / mad)
+            loss = loss_l1(pred, (label - meann) / mad)
             valid_npred.append(pred.detach().cpu().numpy())
             valid_ntrue.append(label.cpu().numpy())
 
         else:
-            # loss = loss_l1(pred, (label - meann) / mad)
+            loss = loss_l1(pred, (label - meann) / mad)
             test_npred.append(pred.detach().cpu().numpy())
             test_ntrue.append(label.cpu().numpy())
-
-
 
         res['loss'] += loss.item() * batch_size
         res['counter'] += batch_size
@@ -287,6 +245,8 @@ def train(epoch, loader, config, partition='train', loss_type='mdn'):
     # labels = np.array(labels)
     # predictions.detach().cpu().nnumpy()
     # labels.detach().cpu().numpy()
+    xdata = pd.DataFrame({'predictions': predictions, 'labels': labels})
+    xdata.to_csv('Q_model/results/pred.csv', index=None)
 
     if partition == 'train':
         # print(train_ntrue)
@@ -334,7 +294,6 @@ if __name__ == "__main__":
 
     all_train_loss, all_val_loss, all_test_loss = [], [], []
     path = config.train.save_path + "/" + config.model.name + "/" + config.train.property
-    os.makedirs(path, exist_ok=True)
     for epoch in range(0, config.train.epochs):
         train_loss, train_rmse, train_mae, train_r2= train(epoch, dataloaders['train'], config, partition='train')
 
@@ -347,13 +306,13 @@ if __name__ == "__main__":
         all_train_loss.append(train_loss)
         lr_scheduler.step()
         if epoch % config.test.test_interval == 0:
-            # val_loss, val_rmse, val_mae, val_r2 = train(epoch, dataloaders['valid'], config, partition='valid')
-            #
-            # print('val_rmse:', val_rmse, 'val_mae:', val_mae, 'r2_val:', val_r2)
-            #
-            # valid_param['rmse'].append(val_rmse)
-            # valid_param['r2'].append(val_r2)
-            # valid_param['mae'].append(val_mae)
+            val_loss, val_rmse, val_mae, val_r2 = train(epoch, dataloaders['valid'], config, partition='valid')
+
+            print('val_rmse:', val_rmse, 'val_mae:', val_mae, 'r2_val:', val_r2)
+
+            valid_param['rmse'].append(val_rmse)
+            valid_param['r2'].append(val_r2)
+            valid_param['mae'].append(val_mae)
 
             test_loss, test_rmse, test_mae, test_r2 = train(epoch, dataloaders['test'], config, partition='test')
 
@@ -376,24 +335,23 @@ if __name__ == "__main__":
                     "scheduler": lr_scheduler.state_dict(),
                     "epoch": epoch
                 }
-                torch.save(state, path + "/datapoint_test.pth")
+                torch.save(state, path + "/checkpoint.pth")
             # print("Val loss: %.4f \t test loss: %.4f \t epoch %d" % (val_loss, test_loss, epoch))
             # print("Best: val loss: %.4f \t test loss: %.4f \t epoch %d"
             #       % (res['best_val'], res['best_test'], res['best_epoch']))
-            # all_val_loss.append(val_loss)
-            # all_test_loss.append(test_loss)
+
+            all_val_loss.append(val_loss)
+            all_test_loss.append(test_loss)
         # save current loss
-        #     xdata = pd.DataFrame(
-        #         {'train_rmse': train_param['rmse'], 'r2_train': train_param['r2'], 'train_mae': train_param['mae'], 'val_rmse': valid_param['rmse'],
-        #          'r2_val': valid_param['r2'], 'val_mae': valid_param['mae'],'tes_rmse': test_param['rmse'],
-        #          'r2_tes': test_param['r2'], 'tes_mae': test_param['mae']})
             xdata = pd.DataFrame(
                 {'train_rmse': train_param['rmse'], 'r2_train': train_param['r2'], 'train_mae': train_param['mae'],
-                'tes_rmse': test_param['rmse'],
-                 'r2_tes': test_param['r2'], 'tes_mae': test_param['mae']})
-            xdata.to_csv('/home/gql/Q/results.csv', index=None)
+                 'val_rmse': valid_param['rmse'],  'r2_val': valid_param['r2'], 'val_mae': valid_param['mae'],
+                 'test_rmse:': test_param['rmse'], 'test_mae:': test_param['mae'], 'r2_test:': test_param['r2']})
+            xdata.to_csv('Q_model/results/results.csv', index=None)
 
         loss_file = path + '/loss.pkl'
         with open(loss_file, 'wb') as f:
-            pkl.dump((all_train_loss, all_test_loss), f)
+            pkl.dump((all_train_loss, all_val_loss, all_test_loss), f)
+
+
 

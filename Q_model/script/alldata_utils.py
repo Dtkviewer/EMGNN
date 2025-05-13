@@ -10,6 +10,11 @@ import tarfile
 from torch.nn.utils.rnn import pad_sequence
 import numpy as np
 
+
+#  dataset中的主函数调用
+#  划分训练集测试集验证集，并将按照编号处理好的数据传入每个集合
+#  主要查看datadir,dataset
+
 def process_sdf_e4(datafile):
     """
     Read xyz file and return a molecular dict with number of atoms, energy, forces, coordinates and atom-type for the gdb9 dataset.
@@ -75,7 +80,7 @@ def one_of_k_encoding_unk(x, allowable_set):
 def atom_features(atom):
     return np.array(one_of_k_encoding_unk(atom.GetSymbol(),
                                           ['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'I', 'B', 'H',
-                                           'Unknown']) +  # H?
+                                           'Unknown']) +
                     one_of_k_encoding(atom.GetDegree(), [0, 1, 2, 3, 4, 5]) +
                     one_of_k_encoding_unk(atom.GetTotalNumHs(), [0, 1, 2, 3, 4]) +
                     one_of_k_encoding_unk(atom.GetImplicitValence(), [0, 1, 2, 3, 4, 5]) +
@@ -114,10 +119,9 @@ def num_bond_features():
 def read_coors(datafile):
     T = False
     with open(datafile, "rb") as f:
-    # lines下标从0开始
         lines = f.readlines()
     for i, row_line in enumerate(lines):
-        row_line = row_line.decode('utf-8').replace("\n", "")  # 正则匹配前，python3需要加上此代码
+        row_line = row_line.decode('utf-8').replace("\n", "")
         if i == 3:
             number = int(lines[i].split()[0])
             start_line = i + 1
@@ -155,18 +159,19 @@ def read_ddec_charge(datafile):
 
 def copyFile(fileDir, save_dir):
     train_rate = 0.8
-    valid_rate = 0.2
+    valid_rate = 0.1
+    test_rate = 0.1
 
-    image_list = os.listdir(fileDir)  # 获取图片的原始路径,列出子文件夹
+    image_list = os.listdir(fileDir)
     image_number = len(image_list)
     train_number = int(image_number * train_rate)
     valid_number = int(image_number * valid_rate)
-    train_sample = random.sample(image_list, train_number)  # 从image_list中随机获取0.8比例的图像.
+    test_number = int(image_number * test_rate)
+    train_sample = random.sample(image_list, train_number)
     valid_sample = random.sample(list(set(image_list) - set(train_sample)), valid_number)
     test_sample = list(set(image_list) - set(train_sample) - set(valid_sample))
     sample = [train_sample, valid_sample, test_sample]
 
-    # 复制图像到目标文件夹
     for k in range(len(save_dir)):
         # os.makedirs(save_dir[k])
         # for name in sample[k]:
@@ -177,7 +182,7 @@ def copyFile(fileDir, save_dir):
 
         for name in sample[k]:
             shutil.copy(os.path.join(fileDir, name),
-                        os.path.join(save_dir[k] + '/', name))  # 连接两个或更多的路径名组件
+                        os.path.join(save_dir[k] + '/', name))
 
 
 def convert(T):
@@ -194,7 +199,7 @@ def convert(T):
     return T
 
 
-def prepare_dataset(datadir, dataset, subset=None, splits=None, copy=True):
+def prepare_dataset(datadir, dataset, subset=None, splits=None, copy=False):
     """
     Download and process dataset.
 
@@ -232,11 +237,11 @@ def prepare_dataset(datadir, dataset, subset=None, splits=None, copy=True):
 
     # Names of splits, based upon keys if split dictionary exists, elsewise default to train/valid/test.
     split_names = splits.keys() if splits is not None else [
-        'train', 'valid']
+        'train', 'valid', 'test']
 
     # Assume one data file for each split
     data_splits = {split: os.path.join(
-        datadir + '/', split) for split in split_names}
+        datadir + '/', split) for split in split_names}   # 字典型数据，value中存放数据路径，key值为train....
     datafiles = {split: os.path.join(datadir, split + '.npz') for split in split_names}
 
     # Check data_splits exist
@@ -256,8 +261,8 @@ def prepare_dataset(datadir, dataset, subset=None, splits=None, copy=True):
 
     save_train_dir = data_splits['train']
     save_valid_dir = data_splits['valid']
-    # save_test_dir = data_splits['test']
-    save_dir = [save_train_dir, save_valid_dir]
+    save_test_dir = data_splits['test']
+    save_dir = [save_train_dir, save_valid_dir, save_test_dir]
     path = os.path.join(datadir, dataset)
     if copy == True:
         copyFile(path, save_dir)
@@ -280,12 +285,12 @@ def prepare_dataset(datadir, dataset, subset=None, splits=None, copy=True):
                 else:
                     test.append(process_sdf_e4(data_path))
     train = convert(train)
-    # test = convert(test)
+    test = convert(test)
     valid = convert(valid)
 
 
     e4_data['train'] = train
-    # e4_data['test'] = test
+    e4_data['test'] = test
     e4_data['valid'] = valid
 
     for split, data in e4_data.items():
