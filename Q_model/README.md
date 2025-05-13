@@ -44,9 +44,9 @@ to install other packages.
 
 ## Datasets
 
-Our 778 molecular file and detailed train, valid, test data are provided in the folder ``` ./sdf/778Q```.
+Our 778 molecular file and detailed train, valid, test data are provided in the folder ``` Q_model/sdf/778Q```.
 
-## Finetuning on QM9
+## Finetuning on QM9 and Prediction
 
 If you want to fine-tune the pre-trained 3D-GNN model, the ```Q_model/script/trans.py``` can be used to generate molecular file with its label.
 
@@ -54,5 +54,16 @@ You can fine-tune and predict with our 778 energetic materials directly by runni
 
 ```
 Q_model/script/Q_prediction.ipynb
-'''
+```
 
+##Citation
+
+```
+@misc{jiao2022energy,
+  url={https://arxiv.org/abs/2207.08824},
+  author={Jiao, Rui and Han, Jiaqi and Huang, Wenbing and Rong, Yu and Liu, Yang},
+  title={Energy-Motivated Equivariant Pretraining for 3D Molecular Graphs},
+  publisher={arXiv},
+  year={2022}
+}
+```
