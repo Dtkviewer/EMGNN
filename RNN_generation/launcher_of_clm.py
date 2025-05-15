@@ -67,6 +67,5 @@ def generate(n: int, idx: int, data_path: str, origin_path, model_path: str, sav
     return novel_smiles
 
 
-#if __name__ == '__main__':
-
-#   generate(50, 0, './data/emsmiles.csv' , './data/guacamol_train.csv', './record/gutl-0050-12.2942.pth', 'generate_mol.csv')
+if __name__ == '__main__':
+   generate(50, 0, './data/emsmiles.csv' , './data/guacamol_train.csv', './record/gutl-0050-12.2942.pth', 'generate_mol.csv')

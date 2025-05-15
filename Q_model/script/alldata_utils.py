@@ -11,10 +11,6 @@ from torch.nn.utils.rnn import pad_sequence
 import numpy as np
 
 
-#  dataset中的主函数调用
-#  划分训练集测试集验证集，并将按照编号处理好的数据传入每个集合
-#  主要查看datadir,dataset
-
 def process_sdf_e4(datafile):
     """
     Read xyz file and return a molecular dict with number of atoms, energy, forces, coordinates and atom-type for the gdb9 dataset.
@@ -80,7 +76,7 @@ def one_of_k_encoding_unk(x, allowable_set):
 def atom_features(atom):
     return np.array(one_of_k_encoding_unk(atom.GetSymbol(),
                                           ['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'I', 'B', 'H',
-                                           'Unknown']) +
+                                           'Unknown']) +  # H?
                     one_of_k_encoding(atom.GetDegree(), [0, 1, 2, 3, 4, 5]) +
                     one_of_k_encoding_unk(atom.GetTotalNumHs(), [0, 1, 2, 3, 4]) +
                     one_of_k_encoding_unk(atom.GetImplicitValence(), [0, 1, 2, 3, 4, 5]) +
@@ -119,6 +115,7 @@ def num_bond_features():
 def read_coors(datafile):
     T = False
     with open(datafile, "rb") as f:
+    # lines下标从0开始
         lines = f.readlines()
     for i, row_line in enumerate(lines):
         row_line = row_line.decode('utf-8').replace("\n", "")
@@ -137,36 +134,39 @@ def read_coors(datafile):
             ca = np.array(lines[i])
             cb[j] = ca
             j = j + 1
-        cc = np.average(cb, axis=0)  # 按列求均值
+        cc = np.average(cb, axis=0)
         for i in range(0, 3):
-            cb[:, i] = cb[:, i] - cc[i]  # 坐标中心化处理
+            cb[:, i] = cb[:, i] - cc[i]
         cb = torch.tensor(cb)
         return cb
 
 def read_ddec_charge(datafile):
     resp_charges = []
     T = True
+    ca = None
     with open(datafile, "rb") as f:
-        # lines下标从0开始
         lines = f.readlines()
     for i, row_line in enumerate(lines):
-        row_line = row_line.decode('utf-8').replace("\n", "")  # 正则匹配前，python3需要加上此代码
+        row_line = row_line.decode('utf-8').replace("\n", "")
         if row_line == '>  <Label>  (1) ':
-            line = lines[i+1].decode('utf-8').replace("\n", "")
+            line = lines[i + 1].decode('utf-8').replace("\n", "")
             ca = np.array(float(line))
+
+    if ca is None:
+        raise ValueError(f"Charge value not found in {datafile}")
+
     cb = torch.tensor(ca)
     return cb
 
+
 def copyFile(fileDir, save_dir):
-    train_rate = 0.8
-    valid_rate = 0.1
-    test_rate = 0.1
+    train_rate = 1
+    valid_rate = 0.0
 
     image_list = os.listdir(fileDir)
     image_number = len(image_list)
     train_number = int(image_number * train_rate)
     valid_number = int(image_number * valid_rate)
-    test_number = int(image_number * test_rate)
     train_sample = random.sample(image_list, train_number)
     valid_sample = random.sample(list(set(image_list) - set(train_sample)), valid_number)
     test_sample = list(set(image_list) - set(train_sample) - set(valid_sample))
@@ -199,7 +199,7 @@ def convert(T):
     return T
 
 
-def prepare_dataset(datadir, dataset, subset=None, splits=None, copy=False):
+def prepare_dataset(datadir, dataset, subset=None, splits=None, copy=True):
     """
     Download and process dataset.
 
@@ -239,9 +239,10 @@ def prepare_dataset(datadir, dataset, subset=None, splits=None, copy=False):
     split_names = splits.keys() if splits is not None else [
         'train', 'valid', 'test']
 
+
     # Assume one data file for each split
     data_splits = {split: os.path.join(
-        datadir + '/', split) for split in split_names}   # 字典型数据，value中存放数据路径，key值为train....
+        datadir + '/', split) for split in split_names}
     datafiles = {split: os.path.join(datadir, split + '.npz') for split in split_names}
 
     # Check data_splits exist

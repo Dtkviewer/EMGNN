@@ -5,7 +5,7 @@ import torch
 from torch_scatter.composite import scatter_softmax
 from torch.autograd import grad
 from torch_scatter import scatter_add
-
+import torch.nn.functional as F
 from torch.nn import LayerNorm
 import math
 
@@ -188,6 +188,47 @@ class EGNN_finetune_last(EGNN_last):
         h = torch.sum(h, dim=1)
         pred = self.graph_dec(h)
         return pred.squeeze(1)
+
+
+class EGNN_finetune_mdn(EGNN_last):
+    def __init__(self, in_node_nf, hidden_nf, in_edge_nf=0, act_fn=nn.SiLU(), n_layers=4, n_gaussians=1, residual=True,
+                 attention=False, normalize=False, tanh=False, use_layer_norm=False):
+        EGNN_last.__init__(self, in_node_nf, hidden_nf, in_edge_nf, act_fn, n_layers, residual, attention, normalize,
+                           tanh, use_layer_norm)
+        self.node_dec = nn.Sequential(nn.Linear(self.hidden_nf, self.hidden_nf),
+                                      act_fn,
+                                      nn.Linear(self.hidden_nf, self.hidden_nf))
+
+        # self.graph_dec = nn.Sequential(nn.Linear(self.hidden_nf, self.hidden_nf),
+        #                                act_fn,
+        #                                nn.Linear(self.hidden_nf, 1))
+
+        self.graph_dec = nn.Sequential(nn.Linear(self.hidden_nf, self.hidden_nf),
+                                       act_fn)
+
+        self.z_pi = nn.Linear(self.hidden_nf, n_gaussians)
+        self.z_sigma = nn.Linear(self.hidden_nf, n_gaussians)
+        self.z_mu = nn.Linear(self.hidden_nf, n_gaussians)
+        self.distribution_sigma = nn.Softplus()
+
+    def forward(self, h, x, edges, edge_attr, n_nodes, edge_mask=None, node_mask=None, adapter=None):
+        x_ = x.clone()
+        h, x = EGNN_last.forward(self, h, x, edges, edge_attr, edge_mask=edge_mask)
+        h = self.node_dec(h)
+        if node_mask is not None:
+            h = h * node_mask
+        h = h.view(-1, n_nodes, self.hidden_nf)
+        h = torch.sum(h, dim=1)
+
+        h = self.graph_dec(h)
+
+        pi = F.softmax(self.z_pi(h), -1)
+        pre_sigma = self.z_sigma(h)
+        sigma = self.distribution_sigma(pre_sigma)
+
+        mu = self.z_mu(h)
+
+        return pi, sigma, mu
 
 class EGNN_md_last(EGNN_last):
     def __init__(self, in_node_nf, hidden_nf, in_edge_nf=0, act_fn=nn.SiLU(), n_layers=4, residual=True, attention=False, normalize=False, tanh=False, mean=None, std=None):

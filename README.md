@@ -6,17 +6,37 @@ This is the code for the paper "Ab novo multi-objective generation framework for
 
 ## Guide for using the code
 
+### Setup and Installation locally
+
+1. Clone the repository to your local machine
+
+2. It is recommended to use a virtual environment to avoid conflicts with other packages on your system. You could install required dependencies according```Q_model/README.md``` and ```RNN_generation/README.md```.
+
+3. Run Python scripts directly
+
+### Open in Colab
+
+To ensure reproducibility across platforms, we have included a Google Colab notebook (EM_colab.ipynb). This makes it easy to run the code without needing to set up the environment locally. 
+
 ### Database
 
-778 energetic molecules we collected with their Q and BDE values is provided.```data/
+778 energetic molecules we collected with their Q and BDE values is provided.
+
+Smiles: ```RNN_generation/data/emsmiles.csv```
+
+BDE values: ```BDE_model/BDE_DATA.xlsx```
+
+Q values: ```Q_model/data/778Q/Q_data.xlsx```
 
 
 ### Molecular generation
 
-The folder RNN_generation contains the molecular generation model (RNN) and you can generate molecules with our fine-tuned model ```RNN_generation/record/gutl-0050-12.2942.pth``` 
+The folder RNN_generation contains the molecular generation model (RNN) and you can generate molecules with our fine-tuned model ```RNN_generation/record/gutl-0050-12.2942.pth``` by simply running
+
 ```
-  RNN_generation/molecule_generation.ipynb
+  python launcher_of_clm.py
 ```
+
 detailed instruction for RNN's use is also provided.```RNN_generation/README.md```
 
 
@@ -25,10 +45,10 @@ detailed instruction for RNN's use is also provided.```RNN_generation/README.md`
 The best BDE_prediction model in this work is supported by the folder ```BDE_model```, you can use by running
 
 ```
-BDE_model/Predict_BDE.ipynb
+python BDE_model/predict.py
 ```
 
-```descriptor.py``` is the code for calculating the descriptors
+```BDE_model/descriptor.py``` is the code for calculating the descriptors
 
 
 ### Prediction of Q_values
@@ -36,10 +56,12 @@ BDE_model/Predict_BDE.ipynb
 The best Q_prediction model in this work is supported by the folder ```Q_model```, you can use by running 
 
 ```
-Q_model/script/Q_prediction.ipynb
+python Q_model/script/finetuning_mdn.py
 ```
-detailed instruction for RNN's use is also provided. ``` Q_model/README.md```
+detailed instruction for using the model is also provided. ``` Q_model/README.md```
 
 ### Multi-objective optimization
 
-```Multi_objective_optimization/Multi_objective_optimization.ipynb``` is the code for 2D P[I] Efficient Global Optimization method to select EMs with trading-off energy and stability.
+for 2D P[I] Efficient Global Optimization method to select EMs with trading-off energy and stability, simply run
+
+```python Multi_objective_optimization/MOO.py```

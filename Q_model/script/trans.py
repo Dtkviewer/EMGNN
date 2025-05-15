@@ -15,8 +15,8 @@ def generate_sdf_from_csv(csv_file):
 
     data = pd.read_excel(csv_file)
 
-    smiles = data['SMILES']
-    labels = data['Q(cal/g)']
+    smiles = data['smiles']
+    labels = data['Q']
 
     df = pd.DataFrame({'SMILES': smiles, 'Label': labels})
 
@@ -28,11 +28,10 @@ def generate_sdf_from_csv(csv_file):
         mol = generate_3d_coordinates(smiles)
         mol.SetProp('Label', str(label))
 
-        writer = Chem.SDWriter(f"Q_model/sdf/778Q/{index}.sdf") #your path that store the '.sdf' file
+        writer = Chem.SDWriter(f"Q_model/data/778Q/Q/{index}.sdf")
         writer.write(mol)
         writer.close()
 
-csv_file = 'data/Q_data.xlsx' #your datapath
+csv_file = 'Q_model/data/778Q/Q_data.xlsx.xlsx'
 
-# generate molecular file
 generate_sdf_from_csv(csv_file)

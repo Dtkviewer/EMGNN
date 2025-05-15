@@ -34,10 +34,10 @@ The data for pre-training and fine-tuning is provided in the folder ```RNN_gener
 
 ## Generation
 
-```RNN_generation/record/gutl-0050-12.2942.pth``` is the fine-tuned model with 778 energetic molecules, you can generate potential energetic molecules by loading this model directly.
+```RNN_generation/record/gutl-0050-12.2942.pth``` is the fine-tuned model with 778 energetic molecules, you can generate potential energetic molecules by loading this model directly and simply run
 
 ```
-run RNN_generation/molecule_generation.ipynb
+python launcher_of_clm.py
 
 ```
 
