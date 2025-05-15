@@ -16,7 +16,7 @@ This is the code for the paper "Ab novo multi-objective generation framework for
 
 ### Open in Colab
 
-To ensure reproducibility across platforms, we have included a Google Colab notebook (EM_colab.ipynb). This makes it easy to run the code without needing to set up the environment locally. 
+To ensure reproducibility across platforms, we have included a Google Colab notebook (```EM_colab.ipynb'''). This makes it easy to run the code without needing to set up the environment locally. 
 
 ### Database
 
